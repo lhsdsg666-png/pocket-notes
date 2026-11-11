@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366f1" />
+      <stop offset="100%" stop-color="#4338ca" />
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#818cf8" />
+    </linearGradient>
+  </defs>
+  <!-- 背景圆角卡片 -->
+  <rect width="512" height="512" rx="128" fill="url(#bgGrad)" />
+  
+  <!-- 笔记本轮廓 -->
+  <rect x="110" y="90" width="292" height="332" rx="28" fill="#ffffff" opacity="0.95" />
+  <rect x="110" y="90" width="45" height="332" rx="10" fill="#e0e7ff" />
+  
+  <!-- 笔记本横线条 -->
+  <rect x="180" y="160" width="180" height="14" rx="7" fill="#6366f1" opacity="0.8" />
+  <rect x="180" y="200" width="140" height="12" rx="6" fill="#cbd5e1" />
+  <rect x="180" y="235" width="165" height="12" rx="6" fill="#cbd5e1" />
+
+  <!-- 相机/照片徽标 (右下角突出) -->
+  <circle cx="340" cy="325" r="70" fill="url(#accentGrad)" stroke="#ffffff" stroke-width="8" />
+  <!-- 相机镜头图符 -->
+  <circle cx="340" cy="325" r="26" fill="#ffffff" />
+  <circle cx="340" cy="325" r="14" fill="#4338ca" />
+  <circle cx="360" cy="305" r="5" fill="#ffffff" />
+</svg>
