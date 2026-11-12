@@ -13,7 +13,7 @@
       :class="typeClasses"
     >
       <component :is="iconComponent" class="w-4 h-4 flex-shrink-0" />
-      <span class="truncate">{{ toastState.message }}</span>
+      <span class="break-words text-xs sm:text-sm leading-snug">{{ toastState.message }}</span>
     </div>
   </Transition>
 </template>

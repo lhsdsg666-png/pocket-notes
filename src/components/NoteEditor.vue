@@ -415,13 +415,14 @@ async function save() {
   }
 
   isSaving.value = true;
+  // 必须深拷贝脱敏纯数据，防止 Vue 3 的 Proxy 传递导致浏览器 IndexedDB 报错 DataCloneError
   const noteData = {
     id: form.id || 'note_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
     title: finalTitle,
     content: form.content.trim(),
-    images: form.images,
-    tags: form.tags,
-    isPinned: form.isPinned,
+    images: JSON.parse(JSON.stringify(form.images || [])),
+    tags: JSON.parse(JSON.stringify(form.tags || [])),
+    isPinned: !!form.isPinned,
     createdAt: form.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
