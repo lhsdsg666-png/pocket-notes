@@ -208,6 +208,15 @@ function openSettings() {
 // 保存笔记
 async function handleSaveNote(noteData) {
   try {
+    // 1. 乐观更新：立刻在内存中显示/更新，无需等待任何异步 I/O，0毫秒呈现
+    const existingIdx = notes.value.findIndex((n) => n.id === noteData.id);
+    if (existingIdx > -1) {
+      notes.value[existingIdx] = { ...noteData };
+    } else {
+      notes.value.unshift({ ...noteData });
+    }
+
+    // 2. 双重持久化存储 (LocalStorage + IndexedDB)
     await saveNote(noteData);
     await loadNotes();
     showToast('笔记已保存', 'success');
@@ -238,6 +247,7 @@ async function handleTogglePin(note) {
 async function handleDeleteNote(note) {
   if (window.confirm(`确定要删除笔记 “${note.title || '此笔记'}” 吗？`)) {
     try {
+      notes.value = notes.value.filter((n) => n.id !== note.id);
       await deleteNote(note.id);
       await loadNotes();
       showToast('已删除笔记', 'info');

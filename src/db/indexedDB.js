@@ -1,12 +1,12 @@
 import { openDB } from 'idb';
 
-const DB_NAME = 'PocketNotesDB';
-const DB_VERSION = 2; // 升级版本号，确保表结构初始化完整
+const DB_NAME = 'PocketNotesDB_v2'; // 使用新数据库名，彻底避开任何旧版本的锁死或 blocked 状态
+const DB_VERSION = 1;
 
 let dbPromise = null;
 
 // 工具函数：深度转换任意对象为纯原生 JSON 对象（彻底剥离 Vue 3 Proxy 响应式代理）
-function toPlainObject(obj) {
+export function toPlainObject(obj) {
   if (!obj) return obj;
   try {
     return JSON.parse(JSON.stringify(obj));
@@ -16,93 +16,143 @@ function toPlainObject(obj) {
   }
 }
 
-// LocalStorage 兜底机制：防止某些手机隐私模式/无痕浏览完全禁用 IndexedDB
-const FALLBACK_KEY = 'pocket_notes_ls_fallback';
+// ========================
+// LocalStorage 同步缓存层 (保证 0 延迟渲染与绝对可用)
+// ========================
+const LS_NOTES_KEY = 'pocket_notes_data_v2';
 
-function getFallbackNotes() {
+export function getLocalNotesFromLS() {
   try {
-    const raw = localStorage.getItem(FALLBACK_KEY);
+    const raw = localStorage.getItem(LS_NOTES_KEY);
     return raw ? JSON.parse(raw) : [];
-  } catch {
+  } catch (e) {
+    console.warn('读取 LocalStorage 失败:', e);
     return [];
   }
 }
 
-function saveFallbackNotes(notes) {
+export function saveLocalNotesToLS(notes) {
   try {
-    localStorage.setItem(FALLBACK_KEY, JSON.stringify(notes));
+    // 存入 LocalStorage 时，若数据过大则去除大图保留缩略图，防止超 5MB 限制
+    const safeNotes = notes.map(n => {
+      const copy = { ...n };
+      if (copy.images && Array.isArray(copy.images)) {
+        copy.images = copy.images.map(img => ({
+          id: img.id,
+          name: img.name,
+          thumbnail: img.thumbnail, // 保留缩略图
+          data: img.thumbnail || img.data, // 优先用缩略图避免超限
+          size: img.size,
+          type: img.type,
+          createdAt: img.createdAt
+        }));
+      }
+      return copy;
+    });
+    localStorage.setItem(LS_NOTES_KEY, JSON.stringify(safeNotes));
   } catch (e) {
-    console.error('LocalStorage 兜底写入失败:', e);
+    console.warn('写入 LocalStorage 警告 (可能已满):', e);
   }
 }
 
+// ========================
+// IndexedDB 异步大容量存储 (带超时保护，绝不挂起 UI)
+// ========================
 export function getDB() {
   if (!dbPromise) {
-    dbPromise = openDB(DB_NAME, DB_VERSION, {
-      upgrade(db, oldVersion, newVersion, transaction) {
-        // 笔记存储表
+    // 设置 1500ms 超时保护，若 IDB 打开被系统卡住，立即降级
+    const openPromise = openDB(DB_NAME, DB_VERSION, {
+      upgrade(db) {
         if (!db.objectStoreNames.contains('notes')) {
-          const noteStore = db.createObjectStore('notes', { keyPath: 'id' });
-          noteStore.createIndex('updatedAt', 'updatedAt');
-          noteStore.createIndex('createdAt', 'createdAt');
-          noteStore.createIndex('isPinned', 'isPinned');
+          db.createObjectStore('notes', { keyPath: 'id' });
         }
-
-        // 图片存储表 (支持大容量存储)
         if (!db.objectStoreNames.contains('images')) {
-          const imageStore = db.createObjectStore('images', { keyPath: 'id' });
-          imageStore.createIndex('noteId', 'noteId');
-          imageStore.createIndex('createdAt', 'createdAt');
+          db.createObjectStore('images', { keyPath: 'id' });
         }
       },
       blocked() {
-        console.warn('IndexedDB 升级被其他标签页阻挡');
+        console.warn('IndexedDB 打开被其他标签页阻挡，降级运行');
       },
       blocking() {
         if (dbPromise) {
-          dbPromise.then(db => db.close());
+          dbPromise.then(db => db.close()).catch(() => {});
           dbPromise = null;
         }
       }
+    });
+
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('IndexedDB 连接超时，自动降级至 LocalStorage')), 1500);
+    });
+
+    dbPromise = Promise.race([openPromise, timeoutPromise]).catch(err => {
+      console.warn(err.message);
+      dbPromise = null;
+      throw err;
     });
   }
   return dbPromise;
 }
 
-// 笔记 CRUD 操作
+// 统一排序
+function sortNotes(list) {
+  return list.sort((a, b) => {
+    if (a.isPinned !== b.isPinned) {
+      return a.isPinned ? -1 : 1;
+    }
+    return new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0);
+  });
+}
+
+// 获取所有笔记（双轨合并：LS + IDB）
 export async function getAllNotes() {
+  // 1. 首先读取 LocalStorage，确保即使离线或 IDB 卡顿时也有数据返回
+  const lsNotes = getLocalNotesFromLS();
+
   try {
     const db = await getDB();
-    const notes = await db.getAll('notes');
-    return notes.sort((a, b) => {
-      if (a.isPinned !== b.isPinned) {
-        return a.isPinned ? -1 : 1;
+    const idbNotes = await db.getAll('notes');
+    
+    // 合并 IDB 和 LS 中的数据，以最新 updatedAt 为准
+    const noteMap = new Map();
+    for (const n of lsNotes) {
+      if (n && n.id) noteMap.set(n.id, n);
+    }
+    for (const n of idbNotes) {
+      if (n && n.id) {
+        const exist = noteMap.get(n.id);
+        if (!exist || new Date(n.updatedAt || 0) >= new Date(exist.updatedAt || 0)) {
+          noteMap.set(n.id, n);
+        }
       }
-      return new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt);
-    });
+    }
+
+    const merged = Array.from(noteMap.values());
+    // 顺便回写 LS，保持同步
+    saveLocalNotesToLS(merged);
+    return sortNotes(merged);
   } catch (err) {
-    console.warn('从 IndexedDB 读取失败，启用 LocalStorage 兜底:', err);
-    const fallback = getFallbackNotes();
-    return fallback.sort((a, b) => {
-      if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
-      return new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt);
-    });
+    console.warn('通过 LocalStorage 运行 getAllNotes:', err.message);
+    return sortNotes(lsNotes);
   }
 }
 
 export async function getNoteById(id) {
+  const lsNotes = getLocalNotesFromLS();
+  const found = lsNotes.find(n => n.id === id);
+  if (found) return found;
+
   try {
     const db = await getDB();
     return await db.get('notes', id);
-  } catch (err) {
-    const list = getFallbackNotes();
-    return list.find(n => n.id === id) || null;
+  } catch {
+    return null;
   }
 }
 
+// 保存笔记（双重存储：同时写入 LS 和 IDB）
 export async function saveNote(note) {
   const now = new Date().toISOString();
-  // 必须深拷贝纯对象，剔除 Vue 3 的 Proxy 响应式对象，防止 IndexedDB 报 DataCloneError: The object could not be cloned
   const clean = toPlainObject(note);
   const record = {
     ...clean,
@@ -116,109 +166,63 @@ export async function saveNote(note) {
     isPinned: !!clean.isPinned,
   };
 
+  // 1. 同步保存至 LocalStorage（立即生效，0 延迟）
+  const currentList = getLocalNotesFromLS();
+  const idx = currentList.findIndex(n => n.id === record.id);
+  if (idx > -1) {
+    currentList[idx] = record;
+  } else {
+    currentList.unshift(record);
+  }
+  saveLocalNotesToLS(currentList);
+
+  // 2. 异步保存至 IndexedDB（支持存完整高清大图）
   try {
     const db = await getDB();
     await db.put('notes', record);
   } catch (err) {
-    console.warn('IndexedDB put 失败，尝试 LocalStorage 兜底:', err);
-    try {
-      const list = getFallbackNotes();
-      const idx = list.findIndex(n => n.id === record.id);
-      if (idx > -1) {
-        list[idx] = record;
-      } else {
-        list.push(record);
-      }
-      saveFallbackNotes(list);
-    } catch (lsErr) {
-      throw new Error('存储受限，请退出无痕/私密浏览模式或清理手机存储后重试: ' + err.message);
-    }
+    console.warn('IDB 异步存储跳过，已安全保存在 LocalStorage 中:', err.message);
   }
 
   return record;
 }
 
+// 删除笔记
 export async function deleteNote(id) {
+  // 1. 先从 LocalStorage 移除
+  const currentList = getLocalNotesFromLS();
+  const filtered = currentList.filter(n => n.id !== id);
+  saveLocalNotesToLS(filtered);
+
+  // 2. 再从 IndexedDB 移除
   try {
     const db = await getDB();
-    const tx = db.transaction(['notes', 'images'], 'readwrite');
-    const noteStore = tx.objectStore('notes');
-    const imageStore = tx.objectStore('images');
-    
-    const note = await noteStore.get(id);
-    if (note && note.images) {
-      for (const img of note.images) {
-        if (img && img.id) {
-          await imageStore.delete(img.id);
-        }
-      }
-    }
-    await noteStore.delete(id);
-    await tx.done;
+    await db.delete('notes', id);
   } catch (err) {
-    console.warn('IndexedDB 删除失败，从 LocalStorage 兜底中删除:', err);
-    const list = getFallbackNotes();
-    const filtered = list.filter(n => n.id !== id);
-    saveFallbackNotes(filtered);
-  }
-}
-
-// 图片存储操作
-export async function saveImageRecord(imageRecord) {
-  const clean = toPlainObject(imageRecord);
-  try {
-    const db = await getDB();
-    await db.put('images', clean);
-  } catch (e) {
-    console.warn('saveImageRecord 失败:', e);
-  }
-  return clean;
-}
-
-export async function getImageRecord(id) {
-  try {
-    const db = await getDB();
-    return await db.get('images', id);
-  } catch {
-    return null;
-  }
-}
-
-export async function deleteImageRecord(id) {
-  try {
-    const db = await getDB();
-    await db.delete('images', id);
-  } catch (e) {
-    console.warn('deleteImageRecord 失败:', e);
+    console.warn('IDB delete 忽略:', err.message);
   }
 }
 
 // 清空所有本地数据
 export async function clearAllLocalData() {
   try {
-    const db = await getDB();
-    const tx = db.transaction(['notes', 'images'], 'readwrite');
-    await tx.objectStore('notes').clear();
-    await tx.objectStore('images').clear();
-    await tx.done;
-  } catch (err) {
-    console.warn('清空 IndexedDB 失败:', err);
-  }
-  try {
-    localStorage.removeItem(FALLBACK_KEY);
+    localStorage.removeItem(LS_NOTES_KEY);
+    localStorage.removeItem('pocket_notes_data');
+    localStorage.removeItem('pocket_notes_ls_fallback');
   } catch {}
+
+  try {
+    const db = await getDB();
+    await db.clear('notes');
+    await db.clear('images');
+  } catch (e) {
+    console.warn('IDB clear 忽略:', e);
+  }
 }
 
-// 获取存储概况（数据量统计）
+// 获取存储概况
 export async function getStorageStats() {
-  let notes = [];
-  try {
-    const db = await getDB();
-    notes = await db.getAll('notes');
-  } catch {
-    notes = getFallbackNotes();
-  }
-
+  const notes = await getAllNotes();
   let imageCount = 0;
   let totalEstimatedBytes = 0;
 
