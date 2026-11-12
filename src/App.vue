@@ -60,7 +60,7 @@
           v-for="note in filteredNotes"
           :key="note.id"
           :note="note"
-          @click-note="openEditor(note)"
+          @click-note="openDetail(note)"
           @toggle-pin="handleTogglePin"
           @view-image="handleViewImage"
           @filter-tag="selectedTag = $event"
@@ -81,7 +81,19 @@
       </button>
     </div>
 
-    <!-- 笔记编辑器弹窗 (全屏/抽屉) -->
+    <!-- 全屏笔记详情阅读页 -->
+    <NoteDetail
+      v-model:visible="detailVisible"
+      :note="viewingNote"
+      @close="detailVisible = false"
+      @edit="handleEditFromDetail"
+      @toggle-pin="handleTogglePin"
+      @delete="handleDeleteNote"
+      @preview-image="handleViewImage"
+      @update-note="handleUpdateNoteDirectly"
+    />
+
+    <!-- 笔记编辑器弹窗 (全屏沉浸式) -->
     <NoteEditor
       v-model:visible="editorVisible"
       :note="editingNote"
@@ -116,6 +128,7 @@
 import { ref, computed, onMounted } from 'vue';
 import Header from './components/Header.vue';
 import NoteCard from './components/NoteCard.vue';
+import NoteDetail from './components/NoteDetail.vue';
 import NoteEditor from './components/NoteEditor.vue';
 import ImageViewer from './components/ImageViewer.vue';
 import SettingsModal from './components/SettingsModal.vue';
@@ -137,6 +150,9 @@ const isSyncing = ref(false);
 const editorVisible = ref(false);
 const editingNote = ref(null);
 
+const detailVisible = ref(false);
+const viewingNote = ref(null);
+
 const viewerVisible = ref(false);
 const viewerImages = ref([]);
 const viewerStartIndex = ref(0);
@@ -151,6 +167,21 @@ async function loadNotes() {
 onMounted(async () => {
   await loadNotes();
 });
+
+function openDetail(note) {
+  viewingNote.value = note;
+  detailVisible.value = true;
+}
+
+function handleEditFromDetail(note) {
+  editingNote.value = note;
+  editorVisible.value = true;
+}
+
+async function handleUpdateNoteDirectly(updatedNote) {
+  viewingNote.value = { ...updatedNote };
+  await handleSaveNote(updatedNote);
+}
 
 // 计算所有不重复标签
 const allTags = computed(() => {
@@ -216,6 +247,11 @@ async function handleSaveNote(noteData) {
       notes.value.unshift({ ...noteData });
     }
 
+    // 若当前正在全屏查看该笔记，同步更新查看视图
+    if (viewingNote.value && viewingNote.value.id === noteData.id) {
+      viewingNote.value = { ...noteData };
+    }
+
     // 2. 双重持久化存储 (LocalStorage + IndexedDB)
     await saveNote(noteData);
     await loadNotes();
@@ -235,6 +271,9 @@ async function handleSaveNote(noteData) {
 async function handleTogglePin(note) {
   try {
     note.isPinned = !note.isPinned;
+    if (viewingNote.value && viewingNote.value.id === note.id) {
+      viewingNote.value.isPinned = note.isPinned;
+    }
     await saveNote(note);
     await loadNotes();
     showToast(note.isPinned ? '已置顶' : '已取消置顶', 'info');
@@ -248,6 +287,10 @@ async function handleDeleteNote(note) {
   if (window.confirm(`确定要删除笔记 “${note.title || '此笔记'}” 吗？`)) {
     try {
       notes.value = notes.value.filter((n) => n.id !== note.id);
+      if (viewingNote.value && viewingNote.value.id === note.id) {
+        detailVisible.value = false;
+        viewingNote.value = null;
+      }
       await deleteNote(note.id);
       await loadNotes();
       showToast('已删除笔记', 'info');

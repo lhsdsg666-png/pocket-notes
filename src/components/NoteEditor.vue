@@ -1,6 +1,6 @@
 <template>
   <Transition
-    enter-active-class="transition duration-300 ease-out"
+    enter-active-class="transition duration-250 ease-out"
     enter-from-class="opacity-0 translate-y-full"
     enter-to-class="opacity-100 translate-y-0"
     leave-active-class="transition duration-200 ease-in"
@@ -9,23 +9,22 @@
   >
     <div
       v-if="visible"
-      class="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-xs flex flex-col justify-end md:justify-center md:items-center"
-      @click.self="handleBackdropClick"
+      class="fixed inset-0 z-50 bg-white dark:bg-slate-900 flex flex-col overflow-hidden"
     >
-      <!-- 编辑器卡片容器 -->
+      <!-- 全屏编辑器容器 (100% 全屏沉浸体验) -->
       <div
-        class="w-full md:max-w-2xl bg-white dark:bg-slate-900 rounded-t-3xl md:rounded-3xl max-h-[92dvh] md:max-h-[85vh] flex flex-col shadow-2xl overflow-hidden border border-slate-200/80 dark:border-slate-800"
+        class="w-full max-w-3xl mx-auto flex-1 flex flex-col h-full bg-white dark:bg-slate-900 overflow-hidden"
       >
         <!-- 顶部操作栏 -->
-        <div class="px-4 py-3 flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pt-safe-top">
+        <div class="px-4 py-3 flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pt-safe-top bg-white/95 dark:bg-slate-900/95 backdrop-blur-md z-10 flex-shrink-0">
           <button
             @click="cancel"
-            class="text-sm font-medium text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 px-2 py-1 rounded-lg"
+            class="text-sm font-medium text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 px-3 py-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-95 transition-all"
           >
             取消
           </button>
 
-          <span class="text-base font-semibold text-slate-800 dark:text-slate-100">
+          <span class="text-base font-bold text-slate-800 dark:text-slate-100">
             {{ isEditing ? '编辑笔记' : '新建笔记' }}
           </span>
 
@@ -35,81 +34,81 @@
             class="text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 active:scale-95 disabled:opacity-50 px-4 py-1.5 rounded-full shadow-xs transition-all flex items-center gap-1.5"
           >
             <Check class="w-4 h-4" />
-            <span>保存</span>
+            <span>完成</span>
           </button>
         </div>
 
-        <!-- 内容滚动区 -->
-        <div class="flex-1 overflow-y-auto px-5 py-4 space-y-4 smooth-scroll">
-          <!-- 标题输入 -->
+        <!-- 内容全屏滚动区 -->
+        <div class="flex-1 overflow-y-auto px-5 py-5 space-y-5 smooth-scroll">
+          <!-- 标题输入 (大字号) -->
           <input
             v-model="form.title"
             type="text"
-            placeholder="标题 (可选，默认提取正文首行)"
-            class="w-full text-lg font-bold bg-transparent border-b border-slate-100 dark:border-slate-800 pb-2 focus:border-primary-500 outline-none text-slate-900 dark:text-slate-100 placeholder-slate-400"
+            placeholder="输入标题 (可选)"
+            class="w-full text-xl sm:text-2xl font-bold bg-transparent border-b border-slate-100 dark:border-slate-800/80 pb-3 focus:border-primary-500 outline-none text-slate-900 dark:text-slate-50 placeholder-slate-400"
           />
 
           <!-- 快捷 Markdown / 格式插入栏 -->
-          <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+          <div class="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
             <button
               @click="insertText('- [ ] ')"
-              class="px-2.5 py-1 text-xs font-medium rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors flex items-center gap-1"
+              class="px-3 py-1.5 text-xs font-medium rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors flex items-center gap-1.5 flex-shrink-0"
             >
-              <CheckSquare class="w-3.5 h-3.5" />
-              <span>待办</span>
+              <CheckSquare class="w-3.5 h-3.5 text-primary-600" />
+              <span>待办清单</span>
             </button>
             <button
               @click="insertText('- ')"
-              class="px-2.5 py-1 text-xs font-medium rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors flex items-center gap-1"
+              class="px-3 py-1.5 text-xs font-medium rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors flex items-center gap-1.5 flex-shrink-0"
             >
-              <List class="w-3.5 h-3.5" />
-              <span>列表</span>
+              <List class="w-3.5 h-3.5 text-indigo-500" />
+              <span>列表项</span>
             </button>
             <button
               @click="insertText('**加粗**')"
-              class="px-2.5 py-1 text-xs font-medium rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors flex items-center gap-1"
+              class="px-3 py-1.5 text-xs font-medium rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors flex items-center gap-1.5 flex-shrink-0"
             >
-              <Bold class="w-3.5 h-3.5" />
+              <Bold class="w-3.5 h-3.5 text-slate-600" />
               <span>粗体</span>
             </button>
             <button
               @click="insertTime"
-              class="px-2.5 py-1 text-xs font-medium rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors flex items-center gap-1"
+              class="px-3 py-1.5 text-xs font-medium rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors flex items-center gap-1.5 flex-shrink-0"
             >
-              <Clock class="w-3.5 h-3.5" />
+              <Clock class="w-3.5 h-3.5 text-amber-500" />
               <span>时间戳</span>
             </button>
           </div>
 
-          <!-- 正文输入框 -->
+          <!-- 正文全屏大输入区 (大幅扩展高度，打字不再局限在小格子) -->
           <textarea
             ref="contentInputRef"
             v-model="form.content"
-            placeholder="记下此时的想法、备忘、日记或灵感... (支持粘贴图片)"
-            rows="6"
+            placeholder="记下此时的想法、生活日常、灵感或工作备忘... (支持长文与照片)"
+            rows="10"
             @paste="handlePaste"
-            class="w-full text-base bg-transparent border-0 outline-none resize-none text-slate-800 dark:text-slate-200 placeholder-slate-400 leading-relaxed"
+            class="w-full min-h-[260px] text-base bg-transparent border-0 outline-none resize-none text-slate-800 dark:text-slate-100 placeholder-slate-400 leading-relaxed font-normal"
           ></textarea>
 
-          <!-- 图片展示与上传区 -->
-          <div>
-            <div class="flex items-center justify-between mb-2">
-              <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                <ImageIcon class="w-3.5 h-3.5" />
-                照片 ({{ form.images.length }})
+          <!-- 照片展示与上传区 -->
+          <div class="pt-2 border-t border-slate-100 dark:border-slate-800/80">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                <ImageIcon class="w-4 h-4 text-primary-600" />
+                照片附件 ({{ form.images.length }})
               </span>
-              <span v-if="isCompressing" class="text-xs text-primary-600 animate-pulse">
+              <span v-if="isCompressing" class="text-xs text-primary-600 animate-pulse font-medium">
                 {{ compressStatusText }}
               </span>
             </div>
 
-            <!-- 照片九宫格 -->
-            <div class="grid grid-cols-3 sm:grid-cols-4 gap-2">
-              <!-- 已有图片缩略图 -->
+            <!-- 照片网格 -->
+            <div class="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
+              <!-- 已选照片预览卡片 -->
               <div
                 v-for="(img, idx) in form.images"
                 :key="img.id || idx"
-                class="group relative aspect-square rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
+                class="group relative aspect-square rounded-2xl overflow-hidden bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xs"
               >
                 <img
                   :src="img.thumbnail || img.data"
@@ -119,17 +118,17 @@
                 <!-- 删除图片按键 -->
                 <button
                   @click.stop="removeImage(idx)"
-                  class="absolute top-1 right-1 p-1 rounded-full bg-black/60 text-white hover:bg-rose-600 transition-colors"
+                  class="absolute top-1.5 right-1.5 p-1 rounded-full bg-black/60 text-white hover:bg-rose-600 transition-colors shadow-xs"
                 >
                   <X class="w-3.5 h-3.5" />
                 </button>
               </div>
 
-              <!-- 拍照按钮 (直接调用手机相机) -->
+              <!-- 拍照按钮 (直接唤起手机相机) -->
               <label
-                class="aspect-square rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 hover:border-primary-500 hover:text-primary-600 hover:bg-primary-50/50 dark:hover:bg-primary-950/20 active:scale-95 cursor-pointer transition-all"
+                class="aspect-square rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 hover:border-primary-500 hover:text-primary-600 hover:bg-primary-50/50 dark:hover:bg-primary-950/20 active:scale-95 cursor-pointer transition-all"
               >
-                <Camera class="w-5 h-5 mb-1 text-primary-600 dark:text-primary-400" />
+                <Camera class="w-6 h-6 mb-1 text-primary-600 dark:text-primary-400" />
                 <span class="text-xs font-medium">拍照</span>
                 <input
                   type="file"
@@ -142,9 +141,9 @@
 
               <!-- 相册选择按钮 (支持多选) -->
               <label
-                class="aspect-square rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 hover:border-primary-500 hover:text-primary-600 hover:bg-primary-50/50 dark:hover:bg-primary-950/20 active:scale-95 cursor-pointer transition-all"
+                class="aspect-square rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 hover:border-primary-500 hover:text-primary-600 hover:bg-primary-50/50 dark:hover:bg-primary-950/20 active:scale-95 cursor-pointer transition-all"
               >
-                <Images class="w-5 h-5 mb-1 text-indigo-500" />
+                <Images class="w-6 h-6 mb-1 text-indigo-500" />
                 <span class="text-xs font-medium">相册多选</span>
                 <input
                   type="file"
@@ -157,22 +156,22 @@
             </div>
           </div>
 
-          <!-- 标签选择与添加 -->
-          <div>
-            <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1">
-              <Tag class="w-3.5 h-3.5" />
+          <!-- 分类标签 -->
+          <div class="pt-3 border-t border-slate-100 dark:border-slate-800/80">
+            <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+              <Tag class="w-3.5 h-3.5 text-slate-400" />
               分类标签
             </div>
 
-            <!-- 既有标签快速切换 -->
-            <div v-if="allTags.length > 0" class="flex flex-wrap gap-1.5 mb-2">
+            <!-- 既有标签选择 -->
+            <div v-if="allTags.length > 0" class="flex flex-wrap gap-2 mb-2.5">
               <button
                 v-for="tag in allTags"
                 :key="tag"
                 type="button"
                 @click="toggleTag(tag)"
-                class="px-2.5 py-1 text-xs rounded-full border transition-all"
-                :class="form.tags.includes(tag) ? 'bg-primary-600 text-white border-primary-600' : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'"
+                class="px-3 py-1 text-xs rounded-full border transition-all"
+                :class="form.tags.includes(tag) ? 'bg-primary-600 text-white border-primary-600 shadow-2xs' : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'"
               >
                 #{{ tag }}
               </button>
@@ -183,14 +182,14 @@
               <input
                 v-model="newTagInput"
                 type="text"
-                placeholder="添加新标签 (如 灵感/工作/生活)"
+                placeholder="添加新标签 (如 生活/工作/旅行)"
                 @keydown.enter.prevent="addNewTag"
-                class="flex-1 text-xs px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:border-primary-500 outline-none text-slate-800 dark:text-slate-200"
+                class="flex-1 text-xs px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:border-primary-500 outline-none text-slate-800 dark:text-slate-200"
               />
               <button
                 type="button"
                 @click="addNewTag"
-                class="px-3 py-2 text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl hover:bg-slate-200 transition-colors"
+                class="px-4 py-2.5 text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl hover:bg-slate-200 transition-colors"
               >
                 添加
               </button>
@@ -198,8 +197,8 @@
           </div>
 
           <!-- 置顶开关 -->
-          <div class="flex items-center justify-between py-2 border-t border-slate-100 dark:border-slate-800">
-            <span class="text-sm text-slate-700 dark:text-slate-300 flex items-center gap-2">
+          <div class="flex items-center justify-between py-3 border-t border-slate-100 dark:border-slate-800/80">
+            <span class="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2">
               <Pin class="w-4 h-4 text-primary-600" />
               置顶这条笔记
             </span>
@@ -209,10 +208,10 @@
               class="w-5 h-5 accent-primary-600 rounded cursor-pointer"
             />
           </div>
-        </div>
 
-        <!-- 底部安全间隙 -->
-        <div class="pb-safe-bottom bg-white dark:bg-slate-900"></div>
+          <!-- 底部安全间隙，留足虚拟键盘滚动空间 -->
+          <div class="h-24 pb-safe-bottom"></div>
+        </div>
       </div>
     </div>
   </Transition>
